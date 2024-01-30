@@ -14,7 +14,7 @@ SSL_CTX *create_ssl_context()
 {
     SSL_CTX *ctx;
 
-    SSL_library_init();
+    //SSL_library_init();
     ctx = SSL_CTX_new(SSLv23_server_method());
 
     if (!ctx) 
@@ -40,18 +40,25 @@ SSL_CTX *create_ssl_context()
 SSL *setup_ssl(SSL_CTX *ctx, int client_fd) 
 {
     SSL *ssl = SSL_new(ctx);
-    if (!ssl) 
+    /*if (!ssl) 
     {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
-    }
+    }*/
 
     SSL_set_fd(ssl, client_fd);
+    int flag;
 
-    if (SSL_accept(ssl) <= 0) 
+
+    if (flag = SSL_accept(ssl)) 
     {
+	SSL_free(ssl);
+	SSL_CTX_free(ctx);
+        printf("%d", flag);    	
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
+        
+        
     }
 
     return ssl;
@@ -63,8 +70,11 @@ int main()
 	struct sockaddr_in target_addr, proxy_addr;
 	SSL_CTX *ssl_ctx;
 	SSL *ssl;
-	
-	ssl_ctx = create_ssl_context();
+/*	SSL_library_init();
+	SSL_load_error_strings();
+	ERR_load_BIO_strings();
+	OpenSSL_add_all_algorithms();
+	ssl_ctx = create_ssl_context();*/
 	
 	target_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if(target_fd == -1)
@@ -85,6 +95,8 @@ int main()
 		exit(1);
 	}
 	
+	printf("Server is listening");
+	
 	if(listen(target_fd, 1) == -1)
 	{
 		perror("Error in listening");
@@ -92,24 +104,35 @@ int main()
 		exit(1);
 	}
 	
-	printf("Server is listening");
+	printf("  %d\n",target_fd);
 	
+	while(1){
 	proxy_fd = accept(target_fd, NULL, NULL);
+	
+
 	if(proxy_fd == -1)
 	{
 		perror("Error in accepting");
 		close(target_fd);
 		exit(1);
 	}
-	
+	printf("hello\n");	
+	SSL_library_init();
+        SSL_load_error_strings();
+        ERR_load_BIO_strings();
+        OpenSSL_add_all_algorithms();
+        ssl_ctx = create_ssl_context();
+
 	ssl = setup_ssl(ssl_ctx, proxy_fd);
 	
-	while(1)
-	{
+	printf("helloo\n");
+	
+
+	
 		char buffer[4096];
 		ssize_t recv;
 		
-		fd_set read_fds;
+		/*fd_set read_fds;
 		FD_ZERO(&read_fds);
 		FD_SET(proxy_fd, &read_fds);
 		
@@ -117,32 +140,31 @@ int main()
 		{
 			perror("select error");
 			break;
+		}*/
+		
+		recv = SSL_read(ssl, buffer, sizeof(buffer));
+		if(recv <= 0)
+		{
+			perror("Error in receiving from proxy");
+			break;
 		}
 		
-		if(FD_ISSET(proxy_fd, &read_fds))
+	        if(strstr(buffer,"GET"))
 		{
-			recv = SSL_read(ssl, buffer, sizeof(buffer));
-			if(recv <= 0)
-			{
-				perror("Error in receiving from proxy");
-				break;
-			}
-			
-			char response[4096];
-			sprintf(response, "<html><body><h1>Hello, this is the server response for CONNECT request!</h1></body></html>\r\n");
-			
-			char *message = "Connect is processed";
-			send(target_fd, message, strlen(message), 0);
-		}
-	}
+		char *response = "<html><body><h1>Hello, this is the server response for CONNECT request!</h1></body></html>\r\n";
+		int sent = SSL_write(ssl, response, strlen(response));
+		}	
+		/*char *message = "Connect is processed";
+		SSL_write(targe, buffer, received2);*/
+		        	
 	
 	SSL_shutdown(ssl);
-	SSL_free(ssl);
+  	SSL_free(ssl);
+        SSL_CTX_free(ssl_ctx);	
 	
-	
-	close(proxy_fd);
-	SSL_CTX_free(ssl_ctx);
-	
+
+	}
+   close(proxy_fd);
 	return 0;
 }
-		 
+
