@@ -15,6 +15,38 @@
 #define TARGET_HOST "localhost"
 #define TARGET_PORT "8888" 
 
+void print_certificate(SSL *ssl) {
+    X509 *cert = SSL_get_peer_certificate(ssl);
+    if (cert != NULL) {
+        char *subject = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+        char *issuer = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+        
+        printf("Subject: %s\n", subject);
+        printf("Issuer: %s\n", issuer);
+        
+        X509_free(cert);
+        free(subject);
+        free(issuer);
+    } else {
+        printf("No certificate available\n");
+    }
+}
+
+SSL_CTX *create_ssl_context1() {
+	//SSL_library_init();
+        SSL_load_error_strings();
+        SSL_CTX *ctx1;
+
+        ctx1 = SSL_CTX_new(SSLv23_client_method());
+
+        if(ctx1 == NULL) {
+                ERR_print_errors_fp(stderr);
+                exit(1);
+        }
+        return ctx1;
+}
+
+
 SSL_CTX *create_ssl_context()
 {
 	/*SSL_CTX *ctx;
@@ -68,6 +100,7 @@ SSL *setup_ssl(SSL_CTX *ctx, int client_fd)
 	
 	SSL_set_fd(ssl, client_fd);
 	
+	
 	int flag = SSL_accept(ssl);
 	printf (" %d \n", flag);
 	if(flag <= 0)
@@ -101,6 +134,7 @@ SSL *setup_ssl(SSL_CTX *ctx, int client_fd)
             		fprintf(stderr, "SSL_accept error: %d\n", ssl_error);
 		}
 		exit(1);
+		
 	}
 	
 	return ssl;
@@ -166,7 +200,7 @@ int main()
         SSL_load_error_strings();
         ERR_load_BIO_strings();
         OpenSSL_add_all_algorithms();
-        ssl_ctx = create_ssl_context();
+        ssl_ctx = create_ssl_context1();
 		ssl = setup_ssl(ssl_ctx, client_fd);
 		printf ("&\n");
 		
@@ -215,7 +249,22 @@ int main()
 		        //memcpy(&target_addr.sin_addr, target_hostent->h_addr_list[0], target_hostent->h_length);
 		        
 		        
-		        if(connect(target_fd, (struct sockaddr*)&target_addr, sizeof(target_addr)) == -1)
+		        /*if(SSL_connect(ssl) == -1)
+		        {
+		        	perror("Error in connecting target server");
+		        	close(client_fd);
+		        	SSL_shutdown(ssl);
+		        	SSL_free(ssl);
+		        	
+		        	continue;
+		        }*/
+		        printf("%d", target_fd);
+		        
+		        SSL_CTX *target_ctx=create_ssl_context();
+		        SSL *target_ssl = setup_ssl(target_ctx, target_fd);
+		        print_certificate(target_ssl);
+		        
+		        if(SSL_connect(target_ssl) == -1)
 		        {
 		        	perror("Error in connecting target server");
 		        	close(client_fd);
@@ -224,11 +273,6 @@ int main()
 		        	
 		        	continue;
 		        }
-		        printf("%d", target_fd);
-		        
-		        SSL_CTX *target_ctx=create_ssl_context();
-		        SSL *target_ssl = setup_ssl(target_ctx, target_fd);
-		        
 		    
 		        	/*fd_set read_fds;
 		        	FD_ZERO(&read_fds);
