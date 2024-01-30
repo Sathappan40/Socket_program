@@ -101,31 +101,33 @@ SSL_library_init();
 
         char buffer[4096];
         ssize_t recv_bytes = SSL_read(ssl, buffer, sizeof(buffer));
-        if (recv_bytes <= 0) {
+        /*if (recv_bytes <= 0) {
             perror("Error receiving from client");
             close(proxy_fd);
             continue;
-        }
-
+        }*/
+        
+        int sent_bytes;
         if (strstr(buffer, "CT")) {
             char *response = "<html><body><h1>Hello, this is the server response for CONNECT request!</h1></body></html>\r\n";
-            int sent_bytes = SSL_write(ssl, response, strlen(response));
+            sent_bytes = SSL_write(ssl, response, strlen(response));
+            }
         if (strstr(buffer, "GET")) {
             char *response = "<html><body><h1>Hello, this is the server response for GET request!</h1></body></html>\r\n";
-            int sent_bytes = SSL_write(ssl, response, strlen(response));
+            sent_bytes = SSL_write(ssl, response, strlen(response));
+            }
             if (sent_bytes <= 0) {
                 perror("Error sending response to client");
                 close(proxy_fd);
                 continue;
             }
-        }
 
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(proxy_fd);
+       }
 
-
-    SSL_CTX_free(ssl_ctx);}
+    SSL_CTX_free(ssl_ctx);
     close(target_fd);
     return 0;
 }
