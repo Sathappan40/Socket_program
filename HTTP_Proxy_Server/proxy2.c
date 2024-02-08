@@ -84,10 +84,6 @@ int client_creation (char* port, char* destination_server_addr)
 	
 	return sockfd;
 	
-	
-	freeaddrinfo (servinfo);
-	
-	return sockfd;
 }
 
 char* extract_hostname(const char* request) {
@@ -151,15 +147,15 @@ char* extract_hostname(const char* request) {
 
 
 // Forward the data between client and destination in an HTTPS connection
-void message_handler (int client_socket, int destination_socket,char buffer1[])
+void message_handler (int client_socket, int server_socket)
 {
-    
+    char buffer2[4096];
     struct pollfd pollfds [2];
     pollfds [0].fd = client_socket;
     pollfds [0].events = POLLIN;
     pollfds [0].revents = 0;
     
-    pollfds [1].fd = destination_socket;
+    pollfds [1].fd = server_socket;
     pollfds [1].events = POLLIN;
     pollfds [1].revents = 0;
 	ssize_t n;
@@ -176,39 +172,39 @@ void message_handler (int client_socket, int destination_socket,char buffer1[])
 		for (int fd = 0; fd < 2; fd++)
 		{
 			//Message from client to server
-			if (pollfds [0].revents & POLLIN)
+			if ((pollfds [fd].revents & POLLIN) == POLLIN && fd == 0)
 			{
-				n = read (pollfds [0].fd, buffer1, 1024);
+				n = read (client_socket, buffer2, 4096);
 				if (n <= 0)
 					return;
 
-				buffer1 [n] = '\0';
+				buffer2 [n] = '\0';
 
-				write (pollfds [1].fd, buffer1, n);
+				write (server_socket, buffer2, n);
 			}
 			
 			//Message from server to client
-			if (pollfds [1].revents & POLLIN)
+			if ((pollfds [fd].revents & POLLIN)== POLLIN && fd == 1)
 			{
-				n = read (pollfds [1].fd, buffer1, 1024);
+				n = read (server_socket, buffer2, 4096);
 				if (n <= 0)
 					return;
 
-				buffer1 [n] = '\0';
+				buffer2 [n] = '\0';
 
-				write (pollfds [0].fd, buffer1, n);
+				write (client_socket, buffer2, n);
 			}
 		}
 	}
 }
 
-void message_handler_http (int client_socket, int destination_socket,char buffer1[])
+void message_handler_http (int client_socket, int server_socket,char buffer1[])
 {
 	ssize_t n;
 	
-	n = write (destination_socket, buffer1, 2048);
+	n = write (server_socket, buffer1, 2048);
 	
-	while ((n = read(destination_socket, buffer1, 2048)) > 0)
+	while ((n = read(server_socket, buffer1, 2048)) > 0)
 		write(client_socket, buffer1, n);
 }
 
@@ -219,7 +215,7 @@ void handle_client(int client_socket) {
     int server_socket;
     ssize_t bytes_read, bytes_written;
 
-    // Read the CONNECT request from the client
+    // Read the request from the client
     bytes_read = read(client_socket, buffer, sizeof(buffer));
     if (bytes_read <= 0) {
         perror("Failed to read from client");
@@ -235,162 +231,70 @@ void handle_client(int client_socket) {
     
     char method[16];
     char host[256];
-    char buffer1[4096];
+    char buffer1[BUFFER_SIZE];
     strcpy(buffer1, buffer);
-    printf ("%s\n\n", buffer1);
     sscanf (buffer, "%s %s", method, host);
     
     if(strcmp(method, "CONNECT") == 0)
     {
-	    char *port_str = strchr (host, ':');
-	    char https_port [10] = "443";
-	    char *port;
-		
-	    if (port_str != NULL) 
-	    {
-	    	*port_str = '\0';
+		char *port_str = strchr (host, ':');
+		char https_port [10] = "443";
+		char *port;
+
+		if (port_str != NULL) 
+		{
+		*port_str = '\0';
 		port = port_str + 1;
-	    }
-	    
-	    else
+		}
+		else
 		port = https_port;
-	    
-	    char *hostnm = strtok(buffer1+8, ":");
-	    
-	    server_socket = client_creation (port, host);
-	    printf ("P:%s\n\n", port);
-    }
-    
+
+		//char *hostnm = strtok(buffer1+8, ":");
+
+		server_socket = client_creation (port, host);
+
+		//message_handler(client_socket,server_socket,buffer1);
+		const char *response = "HTTP/1.1 200 Connection established\r\n\r\n";
+		bytes_written = write(client_socket, response, strlen(response));
+
+		if (bytes_written <= 0) {
+			perror("Failed to write response to client");
+			close(client_socket);
+			close(server_socket);
+			return;
+		}
+		
+
+		message_handler(client_socket,server_socket);
+    }    
     else
     {
-    	char *host_str = strstr (buffer, "Host: ") + 6;
-	char *host_end = strstr (host_str, "\r\n");
-	//*host_end = '\0';	
-	char* port;
-        char http_port [10] = "80";
-        char* port_str = strchr (host_str, ':');
-    	if (port_str != NULL) 
-    	{
-			*port_str = '\0';
-			port = port_str + 1;
-	}
-    	else
-    		port = http_port;
-    		
-    	char* host = extract_hostname(buffer);
-    		
-    	server_socket = client_creation (port, host);
-    	printf ("PORT:%s\n\n", port);
-    	printf("%s\n\n", host);
-    
+    		char *host_str = strstr (buffer, "Host: ") + 6;
+		char *host_end = strstr (host_str, "\r\n");
+		//*host_end = '\0';	
+		char* port;
+		char http_port [10] = "80";
+		char* port_str = strchr (host_str, ':');
+	    	if (port_str != NULL) 
+	    	{
+				*port_str = '\0';
+				port = port_str + 1;
+		}
+	    	else
+	    		port = http_port;
+	    		
+	    	char* host = extract_hostname(buffer);
+	    		
+	    	server_socket = client_creation (port, host);
+	    	printf ("PORT:%s\n\n", port);
+	    	printf("%s\n\n", host);
+	    	message_handler_http (client_socket, server_socket,buffer1);
+	    
     }
-    
     printf ("%s\n\n", method);
     printf ("%s\n\n", host);
-    
-    //printf ("%s\n\n", hostnm);
-    
-    /*server_socket = client_creation (port, host);
-    if (server_socket == -1) 
-    {
-    	perror ("socket");
-    	close (client_socket);
-    	exit (EXIT_FAILURE);
-    }
-    */
-    /*struct hostent *host_info;
-    struct in_addr **addr_list;
-
-    // Resolve the hostname
-    host_info = gethostbyname(hostnm);
-    if (host_info == NULL) {
-        perror("gethostbyname");
-        exit(EXIT_FAILURE);
-    }
-    
-     // Extract the list of IP addresses
-    addr_list = (struct in_addr **)host_info->h_addr_list;
-
-    if (addr_list[0] == NULL) {
-        fprintf(stderr, "No IP address found for %s\n", hostnm);
-        exit(EXIT_FAILURE);
-    }
-
-    // Convert the IP address string to binary representation
-    in_addr_t ip_binary = inet_addr(inet_ntoa(*addr_list[0]));
-    if (ip_binary == INADDR_NONE) {
-        fprintf(stderr, "Invalid IP address\n");
-        exit(EXIT_FAILURE);
-    }
-    printf("IPv4 address in binary (network byte order): %08x\n", ip_binary);
-
-		
-
-    // Create a TCP connection to the server
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    //char* str = ip_of_server(port,host);
-    server_addr.sin_addr.s_addr = ip_binary;
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0) {
-        perror("Failed to create server socket");
-        close(client_socket);
-        return;
-    }
-    
-    if (connect(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Failed to connect to server");
-        close(client_socket);
-        close(server_socket);
-        return;
-    }*/
-    
-    //server_socket = client_creation (port, host);
-    
-    printf("hello");
-
-    // Send a response to the client indicating that the connection is established
-    const char *response = "HTTP/1.1 200 Connection established\r\n\r\n";
-    bytes_written = write(client_socket, response, strlen(response));
-    if (bytes_written <= 0) {
-        perror("Failed to write response to client");
-        close(client_socket);
-        close(server_socket);
-        return;
-    }
-
-    // Forward data between client and server
-    //while ((bytes_read = read(client_socket, buffer, sizeof(buffer))) > 0) 
-    /*while(1){
-        bytes_written = write(server_socket, buffer, bytes_read);
-        if (bytes_written <= 0) {
-            perror("Failed to write to server");
-            break;
-        }
-        bytes_read = read(server_socket, buffer, sizeof(buffer));
-        if (bytes_read <= 0) {
-            perror("Failed to read from server");
-            break;
-        }
-        bytes_written = write(client_socket, buffer, bytes_read);
-        if (bytes_written <= 0) {
-            perror("Failed to write to client");
-            break;
-        }
-    }*/
-    
-    if(strcmp(method, "CONNECT") == 0)
-    {
-    	message_handler(client_socket,server_socket,buffer1);
-    }
-    else
-    {
-    	message_handler_http (client_socket, server_socket,buffer1);
-    }
-    
     close(client_socket);
-    close(server_socket);
+    close(server_socket);	    
 }
 
 int main() {
@@ -430,14 +334,19 @@ int main() {
     // Accept and handle incoming connections
     while (1) {
         client_socket = accept(proxy_socket, (struct sockaddr *)&client_addr, &client_addr_len);
-        if (client_socket < 0) {
-            perror("Failed to accept connection");
-            continue;
+        if(!fork()){
+        	close(proxy_socket);
+		if (client_socket < 0) {
+		    perror("Failed to accept connection");
+		    continue;
+		}
+
+		printf("Accepted connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+		handle_client(client_socket);
+		exit(1);
         }
-
-        printf("Accepted connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-
-        handle_client(client_socket);
+        close(client_socket);
     }
 
     return 0;
