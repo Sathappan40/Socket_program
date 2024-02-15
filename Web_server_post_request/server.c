@@ -42,7 +42,7 @@ void handle_request(int client_fd, char *request)
     write_to_file(data_start);
 
     // Send response
-    char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\nPOST request received and data written to file";
+    char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>POST request received and data written to file</h1>";
     send(client_fd, response, strlen(response), 0);
 }
 
