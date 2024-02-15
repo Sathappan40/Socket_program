@@ -1,0 +1,9 @@
+Rakesh
+--#include <stdio.h>
+int main()
+{
+ printf("hello, world\n");   /* To print the word */
+ return 0;
+}
+
+--

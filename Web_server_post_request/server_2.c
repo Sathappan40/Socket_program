@@ -7,6 +7,7 @@
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
+#define FILENAME_MAX_LENGTH 256
 
 void handle_post_request(int client_fd, char *request) {
     char *boundary_start = strstr(request, "boundary=");
@@ -51,6 +52,15 @@ void handle_post_request(int client_fd, char *request) {
     //printf("Part End : %s\n\n\n\n", part_end);
     
     int count = 0;
+    
+    char filename[FILENAME_MAX_LENGTH];
+    snprintf(filename, FILENAME_MAX_LENGTH, "data_in_post%ld.txt", time(NULL)); // Generate unique filename
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        // Error opening file
+        send(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 39, 0);
+        return;
+    }
 
     // Process each part
     //while (part_start < part_end) 
@@ -61,6 +71,7 @@ void handle_post_request(int client_fd, char *request) {
         if (!disposition_start) {
             // Invalid part format
             send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+            fclose(file);
             return;
         }
 
@@ -84,6 +95,7 @@ void handle_post_request(int client_fd, char *request) {
         if (!data_start) {
             // Invalid part format
             send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+            fclose(file);
             return;
         }
 
@@ -92,6 +104,7 @@ void handle_post_request(int client_fd, char *request) {
         if (!data_end) {
             // Invalid part format
             send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+            fclose(file);
             return;
         }
         //printf("Data Start: %s\n\n\n\n", data_start);
@@ -99,10 +112,14 @@ void handle_post_request(int client_fd, char *request) {
 
         // Print field name and data to terminal
         printf("Field: %s , Data: %.*s\n", field_name, (int)(data_end - data_start), data_start);
+        
+        fwrite(data_start, sizeof(char), data_end - data_start, file);
 
         // Move to next part
         part_start = data_end + strlen(boundary);
     }
+    
+    fclose(file);
 
     // Send response
     send(client_fd, "HTTP/1.1 200 OK\r\n\r\n", 19, 0);
