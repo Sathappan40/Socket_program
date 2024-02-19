@@ -102,6 +102,8 @@ int main()
             perror("Receive failed");
             exit(EXIT_FAILURE);
         }
+        
+        printf("%s", buffer);
 
         // Handle HTTP request
         handle_request(client_fd, buffer);

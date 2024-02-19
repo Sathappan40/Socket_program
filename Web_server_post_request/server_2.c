@@ -9,121 +9,211 @@
 #define BUFFER_SIZE 1024
 #define FILENAME_MAX_LENGTH 256
 
-void handle_post_request(int client_fd, char *request) {
-    char *boundary_start = strstr(request, "boundary=");
-    if (!boundary_start) {
-        // Invalid request format
-        send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-        return;
-    }
-    
+char *url_decode(const char *str) 
+{
+    char *decoded_str = malloc(strlen(str) + 1);
+    char *p = decoded_str;
 
-    boundary_start += strlen("boundary=");
-    char *boundary_end = strchr(boundary_start, '\r');
-    if (!boundary_end) {
-        // Invalid boundary format
-        send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-        return;
+    while (*str) 
+    {
+        if (*str == '+') 
+        {
+            *p++ = ' ';
+        }
+        else 
+        {
+            *p++ = *str;
+        }
+        str++;
     }
-    //printf("Boundary Start : %s\n\n\n\n", boundary_start);
-    //printf("Boundary End : %s\n\n\n\n", boundary_end);
+    *p = '\0';
+    return decoded_str;
+}
 
-    // Extract boundary string
-    char boundary[128];
-    strncpy(boundary, boundary_start, boundary_end - boundary_start);
-    boundary[boundary_end - boundary_start] = '\0';
 
-    // Find start of first part
-    char *part_start = strstr(boundary_end, "\r\n\r\n") + 4;
-    if (!part_start) {
-        // Invalid request format
-        send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-        return;
-    }
-
-    // Find end of first part
-    char *part_end = strstr(part_start, boundary);
-    if (!part_end) {
-        // Invalid request format
-        send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-        return;
-    }
-    //printf("Part Start : %s\n\n\n\n", part_start);
-    //printf("Part End : %s\n\n\n\n", part_end);
-    
-    int count = 0;
-    
+void handle_post_request(int client_fd, char *request) 
+{
     char filename[FILENAME_MAX_LENGTH];
     snprintf(filename, FILENAME_MAX_LENGTH, "data_in_post%ld.txt", time(NULL)); // Generate unique filename
-    FILE *file = fopen(filename, "w");
-    if (!file) {
-        // Error opening file
-        send(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 39, 0);
-        return;
-    }
-
-    // Process each part
-    //while (part_start < part_end) 
-    while(count<2)
+    FILE *file = fopen(filename, "wb");
+    if (!file) 
     {
-        // Find content disposition
-        char *disposition_start = strstr(part_start, "Content-Disposition:");
-        if (!disposition_start) {
-            // Invalid part format
-            send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-            fclose(file);
-            return;
-        }
-
-        // Extract field name
-        char *name_start = strstr(disposition_start, "name=\"") + strlen("name=\"");
-        char *name_end = strchr(name_start, '"');
-        if (!name_end) {
-            // Invalid part format
-            send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-            return;
-        }
-        //printf("Name Start : %s\n\n\n\n", name_start);
-        //printf("Name End : %s\n\n\n\n", name_end);
-
-        char field_name[128];
-        strncpy(field_name, name_start, name_end - name_start);
-        field_name[name_end - name_start] = '\0';
-
-        // Find start of part data
-        char *data_start = strstr(disposition_start, "\r\n\r\n") + 4;
-        if (!data_start) {
-            // Invalid part format
-            send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-            fclose(file);
-            return;
-        }
-
-        // Find end of part data
-        char *data_end = strstr(data_start, boundary);
-        if (!data_end) {
-            // Invalid part format
-            send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
-            fclose(file);
-            return;
-        }
-        //printf("Data Start: %s\n\n\n\n", data_start);
-        //printf("Data End : %s\n\n\n\n", data_end);
-
-        // Print field name and data to terminal
-        printf("Field: %s , Data: %.*s\n", field_name, (int)(data_end - data_start), data_start);
-        
-        fwrite(data_start, sizeof(char), data_end - data_start, file);
-
-        // Move to next part
-        part_start = data_end + strlen(boundary);
-    }
+		// Error opening file
+    	send(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 39, 0);
+    	return;
+    }	
     
+    char *content_type_start = strstr(request, "Content-Type:");
+    char *content_type_end = strchr(content_type_start, '\r');
+    
+    char content_type[128];
+    strncpy(content_type, content_type_start, content_type_end - content_type_start);
+    content_type[content_type_end - content_type_start] = '\0';
+    printf("\ncontent type : %s", content_type);
+    
+    int res;
+    
+    if (strstr(content_type, "multipart/form-data") == NULL)
+    {
+    	char *data_start = strstr(request, "\r\n\r\n") + 4;
+    	printf("\nData : %s\n", data_start);
+    	
+    	char *next_tok, *token, *pair, *key, *value;
+    	char *data_copy = strdup(data_start);
+    	
+    	token = strtok(data_copy, "&");
+    	printf("Token : %s\n", token);
+    	
+    	next_tok = strstr(data_start, "&")+1;
+    	printf("Next_Token : %s\n", next_tok);
+    	
+    	int count = 0;
+    	while(count<2)
+    	{
+    		count = count+1;
+    		pair = strdup(token);
+    		key = strtok(pair, "=");
+    		value = strtok(NULL, "=");
+    		printf("Key : %s\n", key);
+    		printf("Value : %s\n", value);
+    		
+    		char *decoded_key = url_decode(key);
+	        char *decoded_value = url_decode(value);
+
+		printf("Field : %s  Information : %s\n", decoded_key, decoded_value);
+		fwrite(decoded_key, sizeof(char), strlen(decoded_key), file);
+		fwrite(decoded_value, sizeof(char), strlen(decoded_value), file);
+
+		free(pair);
+		free(decoded_key);
+		free(decoded_value);
+		
+		token = next_tok;
+		
+	}
+	free(data_copy);
+	
+    }
+
+    		
+    	
+    
+    else
+    {
+    	 char *boundary_start = strstr(request, "boundary=");
+	    if (!boundary_start) 
+	    {
+		// Invalid request format
+		send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		return;
+	    }
+	    
+
+	    boundary_start += strlen("boundary=");
+	    char *boundary_end = strchr(boundary_start, '\r');
+	    if (!boundary_end) 
+	    {
+		// Invalid boundary format
+		send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		return;
+	    }
+	    //printf("Boundary Start : %s\n\n\n\n", boundary_start);
+	    //printf("Boundary End : %s\n\n\n\n", boundary_end);
+
+	    // Extract boundary string
+	    char boundary[128];
+	    strncpy(boundary, boundary_start, boundary_end - boundary_start);
+	    boundary[boundary_end - boundary_start] = '\0';
+
+	    // Find start of first part
+	    char *part_start = strstr(boundary_end, "\r\n\r\n") + 4;
+	    if (!part_start) 
+	    {
+		// Invalid request format
+		send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		return;
+	    }
+
+	    // Find end of first part
+	    char *part_end = strstr(part_start, boundary);
+	    if (!part_end) 
+	    {
+		// Invalid request format
+		send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		return;
+	    }
+	    //printf("Part Start : %s\n\n\n\n", part_start);
+	    //printf("Part End : %s\n\n\n\n", part_end);
+	    
+	    int count = 0;
+    
+
+	    // Process each part
+	    //while (part_start < part_end) 
+    
+	    while(count<2)
+	    {
+		// Find content disposition
+		char *disposition_start = strstr(part_start, "Content-Disposition:");
+		if (!disposition_start) {
+		    // Invalid part format
+		    send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		    fclose(file);
+		    return;
+		}
+
+		// Extract field name
+		char *name_start = strstr(disposition_start, "name=\"") + strlen("name=\"");
+		char *name_end = strchr(name_start, '"');
+		if (!name_end) {
+		    // Invalid part format
+		    send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		    return;
+		}
+		//printf("Name Start : %s\n\n\n\n", name_start);
+		//printf("Name End : %s\n\n\n\n", name_end);
+
+		char field_name[128];
+		strncpy(field_name, name_start, name_end - name_start);
+		field_name[name_end - name_start] = '\0';
+
+		// Find start of part data
+		char *data_start = strstr(disposition_start, "\r\n\r\n") + 4;
+		if (!data_start) {
+		    // Invalid part format
+		    send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		    fclose(file);
+		    return;
+		}
+
+		// Find end of part data
+		char *data_end = strstr(data_start, boundary);
+		if (!data_end) {
+		    // Invalid part format
+		    send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 29, 0);
+		    fclose(file);
+		    return;
+		}
+		//printf("Data Start: %s\n\n\n\n", data_start);
+		//printf("Data End : %s\n\n\n\n", data_end);
+
+		// Print field name and data to terminal
+		printf("\nField: %s \n Data: %.*s\n", field_name, (int)(data_end - data_start), data_start);
+		
+		fwrite(data_start, sizeof(char), data_end - data_start, file);
+
+		// Move to next part
+		part_start = data_end + strlen(boundary);
+		count++;
+          }
+    	 	
+    }	
+    	
     fclose(file);
 
     // Send response
     send(client_fd, "HTTP/1.1 200 OK\r\n\r\n", 19, 0);
-    count++;
+    
 }
 
 int main() {

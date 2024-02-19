@@ -2,3 +2,6 @@ name=sathappan & age=21
 name=sathappan & age=21 DOB=3.4.2002 
 name=sathappan & age=21 DOB=3.4.2002 
 name=sathappan & age=21 DOB=3.4.2002 aaaa 
+name=karthi & age=21
+name=karthi & age=21 hhh
+name=karthi&DOB=3.4.2002
