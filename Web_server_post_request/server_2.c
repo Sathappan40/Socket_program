@@ -82,22 +82,21 @@ void handle_post_request(int client_fd, char *request)
 
 		printf("Field : %s  Information : %s\n", decoded_key, decoded_value);
 		fwrite(decoded_key, sizeof(char), strlen(decoded_key), file);
+		fputc('\n', file);
 		fwrite(decoded_value, sizeof(char), strlen(decoded_value), file);
+		fputc('\n', file);
 
 		free(pair);
 		free(decoded_key);
 		free(decoded_value);
 		
 		token = next_tok;
+		fputc('\n', file);
 		
 	}
 	free(data_copy);
 	
     }
-
-    		
-    	
-    
     else
     {
     	 char *boundary_start = strstr(request, "boundary=");
