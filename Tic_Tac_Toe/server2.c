@@ -17,17 +17,27 @@
 #define MAX_CLIENTS 2
 
 int currentPlayer = 1;
-char *board; // Pointer to the shared memory segment for the game board
-int shmid;   // Shared memory ID
+//char *board; // Pointer to the shared memory segment for the game board
+char board[3][3] = {{' ', ' ', ' '}, {' ', ' ', ' '}, {' ', ' ', ' '}};
+//int shmid;   // Shared memory ID
 int client_sockets[MAX_CLIENTS];
 int num_client = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for synchronization
+
+void handle_websocket(int new_socket);
 
 // Initialize the game board in shared memory
 void initializeBoard() 
 {
     pthread_mutex_lock(&mutex); // Lock mutex
-    memset(board, ' ', SIZE * SIZE);
+    //memset(board, ' ', SIZE * SIZE);
+    for (int i = 0; i < SIZE; i++) 
+    {
+        for (int j = 0; j < SIZE; j++) 
+        {
+            board[i][j] == ' ';
+        }
+    }
     pthread_mutex_unlock(&mutex); // Unlock mutex
 }
 
@@ -69,7 +79,8 @@ char* base64_encode(const char *input)
 
 int parseWebSocketFrame(char *buffer, int len, char *output) 
 {
-    if (len < 6) return -1; // Insufficient data for header
+    if (len < 6) 
+    	return -1; // Insufficient data for header
 
     // Check if it's a final frame and opcode is text (0x81)
     if ((buffer[0] & 0x80) == 0x80 && (buffer[0] & 0x0F) == 0x01) 
@@ -125,20 +136,20 @@ int isGameOver()
     // Check rows
     for (int i = 0; i < SIZE; i++) 
     {
-        if (board[i*SIZE + 0] == board[i*SIZE + 1] && board[i*SIZE + 1] == board[i*SIZE + 2] && board[i*SIZE + 0] != ' ')
+        if (board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != ' ')
             return 1;
     }
 
     // Check columns
     for (int i = 0; i < SIZE; i++) 
     {
-        if (board[0*SIZE + i] == board[1*SIZE + i] && board[1*SIZE + i] == board[2*SIZE + i] && board[0*SIZE + i] != ' ')
+        if (board[0][i] == board[1][i] && board[1][i] == board[2][i] && board[0][i] != ' ')
             return 1;
     }
 
     // Check diagonals
-    if ((board[0*SIZE + 0] == board[1*SIZE + 1] && board[1*SIZE + 1] == board[2*SIZE + 2] && board[0*SIZE + 0] != ' ') ||
-        (board[0*SIZE + 2] == board[1*SIZE + 1] && board[1*SIZE + 1] == board[2*SIZE + 0] && board[0*SIZE + 2] != ' '))
+    if ((board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != ' ') ||
+        (board[0][2] == board[1][1] && board[1][1] == board[2][0] && board[0][2] != ' '))
         return 1;
 
     // Check if the board is full (draw)
@@ -146,7 +157,7 @@ int isGameOver()
     {
         for (int j = 0; j < SIZE; j++) 
         {
-            if (board[i*SIZE + j] == ' ')
+            if (board[i][j] == ' ')
                 return 0;
         }
     }
@@ -159,11 +170,13 @@ void handleMove(int x, int y, int new_socket)
     pthread_mutex_lock(&mutex); // Lock mutex
     char message[BUFFER_SIZE];
     char message2[BUFFER_SIZE];
-    if (board[x*SIZE +y] == ' ') 
+    char message3[BUFFER_SIZE];
+    int i;
+    if (board[x][y] == ' ') 
     {
-        board[x*SIZE +y] = (currentPlayer == 1) ? 'X' : 'O';
+        board[x][y] = (currentPlayer == 1) ? 'X' : 'O';
         
-        sprintf(message, "%d,%d,%c", x, y, board[x*SIZE + y]);
+        sprintf(message, "%d,%d,%c", x, y, board[x][y]);
         
         printf ("Mess: %s\n", message);
         
@@ -186,26 +199,43 @@ void handleMove(int x, int y, int new_socket)
         {
             printf("Player %d wins!\n", currentPlayer);
             sprintf(message2, "Player %d wins!", currentPlayer);
-            //initializeBoard();
+            strcpy(message3, "Game Over");
+            for(i=0;i<num_client;i++)
+            {
+        	encodeAndSend(message2, strlen(message2), client_sockets[i]);
+        	encodeAndSend(message3, strlen(message3), client_sockets[i]);
+            }
+            initializeBoard();
+            handle_websocket(new_socket);
         } 
         else if (result == -1) 
         {
             printf("It's a draw!\n");
             strcpy(message2, "It's a draw!");
-            //initializeBoard();
+            for(i=0;i<num_client;i++)
+            {
+        	encodeAndSend(message2, strlen(message2), client_sockets[i]);
+        	encodeAndSend(message3, strlen(message3), client_sockets[i]);
+            }
+            initializeBoard();
+            handle_websocket(new_socket);
         } 
         else 
         {
+            strcpy(message2, "Next move");	
             currentPlayer = (currentPlayer == 1) ? 2 : 1;
         }
-        //encodeAndSend(message2, strlen(message2), new_socket);
+        for(i=0;i<num_client;i++)
+        {
+        	encodeAndSend(message2, strlen(message2), client_sockets[i]);
+        }
     }
     pthread_mutex_unlock(&mutex); // Unlock mutex
 }
 
 void *handleClient(void *arg) 
 {
-    static int count = 0;
+    //static int count = 0;
     int new_socket = *(int *)arg;
     char buffer[BUFFER_SIZE];
     int i;
@@ -273,6 +303,13 @@ void *handleClient(void *arg)
     send(new_socket, handshake_response, strlen(handshake_response), 0);
     printf("Sent handshake response:\n%s\n", handshake_response);
     
+    handle_websocket(new_socket);
+}
+    
+    
+void handle_websocket(int new_socket)
+{
+    char buffer[1096];
     // Handle WebSocket communication with the client...
     while(1)
     {
@@ -304,7 +341,7 @@ void *handleClient(void *arg)
 	    printf ("R: %d, C: %d\n", row, col);
 	    
 	    // Check if the move is valid
-	    if (row < 0 || row >= 3 || col < 0 || col >= 3 || board[row*SIZE + col] != ' ') 
+	    if (row < 0 || row >= 3 || col < 0 || col >= 3 || board[row][col] != ' ') 
 	    {
 		strcpy(message, "Invalid move");
 	    } 
@@ -333,7 +370,7 @@ int main()
     int addrlen = sizeof(address);
     
     // Create shared memory segment for the game board
-    shmid = shmget(IPC_PRIVATE, SIZE * SIZE, IPC_CREAT | 0666);
+    /*shmid = shmget(IPC_PRIVATE, SIZE * SIZE, IPC_CREAT | 0666);
     if (shmid == -1) 
     {
         perror("shmget failed");
@@ -346,7 +383,7 @@ int main()
     {
         perror("shmat failed");
         exit(EXIT_FAILURE);
-    }
+    }*/
 
     // Initialize the game board
     initializeBoard();
@@ -403,8 +440,8 @@ int main()
             close(new_socket);
         }
     }
-    shmdt(board);
-    shmctl(shmid, IPC_RMID, NULL);
+    //shmdt(board);
+    //shmctl(shmid, IPC_RMID, NULL);
 
     return 0;
 }

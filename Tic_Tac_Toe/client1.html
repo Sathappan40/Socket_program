@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe</title>
     <style>
-        table {
+        table 
+        {
             border-collapse: collapse;
         }
-        td {
+        td 
+        {
             width: 50px;
             height: 50px;
             border: 1px solid black;
@@ -40,17 +42,37 @@
     <script>
         const ws = new WebSocket("ws://localhost:8080");
 
-        ws.onopen = function(event) {
+        ws.onopen = function(event) 
+        {
             console.log("Connected to the server");
         };
 
-        ws.onmessage = function(event) {
+        ws.onmessage = function(event) 
+        {
             console.log("Received message from server: ", event.data);
             let [x, y, symbol] = event.data.split(",");
-            document.getElementById("board").rows[x].cells[y].innerText = symbol;
+            if(y != undefined)
+            {
+            	document.getElementById("board").rows[x].cells[y].innerText = symbol;
+            }
+            else if(x == "Game Over")
+            {
+            	for(let i=0;i<3;i++)
+            	{
+            		for(let j=0;j<3;j++)
+            		{
+            			document.getElementById("board").rows[i].cells[j].innerText = ' ';
+            		}
+            	}
+            }
+            else
+            {
+            	window.alert(x);
+            }
         };
 
-        function play(x, y) {
+        function play(x, y) 
+        {
             ws.send(x + "," + y);
         }
     </script>
