@@ -97,6 +97,8 @@ void handleMove(int x, int y, int new_socket)
         
         int result = isGameOver();
         
+        printf("Player : %d\n",currentPlayer);
+        
         printf ("Res: %d\n", result);
         if (result == 1) 
         {
@@ -114,8 +116,7 @@ void handleMove(int x, int y, int new_socket)
         {
             currentPlayer = (currentPlayer == 1) ? 2 : 1;
         }
-        printf("Player : %d\n",currentPlayer);
-        encodeAndSend(message2, strlen(message), new_socket);
+        encodeAndSend(message2, strlen(message2), new_socket);
     }
 }
 
@@ -232,6 +233,7 @@ int main()
 	    
 	     if(fork() == 0)
 	     { 
+	            
 
 		    // Receive WebSocket handshake request from the client
 		    if (recv(new_socket, buffer, BUFFER_SIZE, 0) <= 0) 
