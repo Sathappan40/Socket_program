@@ -21,6 +21,7 @@
     </style>
 </head>
 <body>
+    <button id="playButton">Play</button>
     <h1>Tic Tac Toe</h1>
     <table id="board">
         <tr>
@@ -41,6 +42,12 @@
     </table>
     <script>
         const ws = new WebSocket("ws://localhost:8080");
+        
+        document.getElementById("playButton").addEventListener("click", function() 
+        {
+            ws.send("PlayRequest");
+            console.log("Play Request");
+        });
 
         ws.onopen = function(event) 
         {
@@ -51,11 +58,8 @@
         {
             console.log("Received message from server: ", event.data);
             let [x, y, symbol] = event.data.split(",");
-            if(y != undefined)
-            {
-            	document.getElementById("board").rows[x].cells[y].innerText = symbol;
-            }
-            else if(x == "Game Over")
+            
+            if(x == "Game Over")
             {
             	for(let i=0;i<3;i++)
             	{
@@ -64,6 +68,10 @@
             			document.getElementById("board").rows[i].cells[j].innerText = ' ';
             		}
             	}
+            }
+            else if(y != undefined)
+            {
+            	document.getElementById("board").rows[x].cells[y].innerText = symbol;
             }
             else
             {
