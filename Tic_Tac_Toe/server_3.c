@@ -55,22 +55,6 @@ void initializeBoard(int k)
     pthread_mutex_unlock(&mutex); // Unlock mutex
 }
 
-/*void printboard(int k) 
-{
-    printf("k : %d$$\n", k);
-    //pthread_mutex_lock(&mutex); // Lock mutex
-    //memset(board, ' ', SIZE * SIZE);
-    for (int i = 0; i < SIZE; i++) 
-    {
-        for (int j = 0; j < SIZE; j++) 
-        {
-            printf("%c",players[k].board[i][j]);
-        }
-    }
-    printf ("\n");
-    //pthread_mutex_unlock(&mutex); // Unlock mutex
-}*/
-
 unsigned char* sha1_hash(const char *input) 
 {
 
