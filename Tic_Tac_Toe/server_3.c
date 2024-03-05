@@ -467,6 +467,7 @@ void handle_websocket(int new_socket)
 	    			break;
 	    		}
 			handle_playreq (id);
+			
 		}	
 			
 	    }
