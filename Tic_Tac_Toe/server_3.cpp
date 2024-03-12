@@ -24,7 +24,6 @@ public:
     int fd;
     int matched;
     int req;
-    char board[SIZE][SIZE];
 };
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for synchronization
@@ -128,14 +127,28 @@ public:
 class GameLogic 
 {
 public:
-    static void initializeBoard(Player& player) 
+
+    static char (&allocateboard())[SIZE][SIZE] 
+    {
+	    static char board[SIZE][SIZE];
+	    for (int i = 0; i < SIZE; ++i) 
+	    {
+		for (int j = 0; j < SIZE; ++j) 
+		{
+		    board[i][j] = ' '; // Initialize with spaces
+		}
+	    }
+	    return board;
+    }
+    
+    static void initializeBoard(char (*board)[SIZE]) 
     {
             pthread_mutex_lock(&mutex); // Lock mutex
 	     for (int i = 0; i < SIZE; i++) 
 	     {
         	for (int j = 0; j < SIZE; j++) 
         	{
-            		player.board[i][j] = ' ';
+            		board[i][j] = ' ';
         	}
     	     }
 
@@ -143,29 +156,29 @@ public:
 	    pthread_mutex_unlock(&mutex); // Unlock mutex
     }
 
-    static int isGameOver(Player& player) 
+    static int isGameOver(Player& player, char board[][SIZE]) 
     {
     	// Check rows
         for (int i = 0; i < SIZE; i++) {
-            if (player.board[i][0] == player.board[i][1] && player.board[i][1] == player.board[i][2] && player.board[i][0] != ' ')
+            if (board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != ' ')
                 return 1; // Game over, player wins
         }
 
         // Check columns
         for (int i = 0; i < SIZE; i++) {
-            if (player.board[0][i] == player.board[1][i] && player.board[1][i] == player.board[2][i] && player.board[0][i] != ' ')
+            if (board[0][i] == board[1][i] && board[1][i] == board[2][i] && board[0][i] != ' ')
                 return 1; // Game over, player wins
         }
 
         // Check diagonals
-        if ((player.board[0][0] == player.board[1][1] && player.board[1][1] == player.board[2][2] && player.board[0][0] != ' ') ||
-            (player.board[0][2] == player.board[1][1] && player.board[1][1] == player.board[2][0] && player.board[0][2] != ' '))
+        if ((board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != ' ') ||
+            (board[0][2] == board[1][1] && board[1][1] == board[2][0] && board[0][2] != ' '))
             return 1; // Game over, player wins
 
         // Check if the board is full (draw)
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
-                if (player.board[i][j] == ' ')
+                if (board[i][j] == ' ')
                     return 0; // Game is not over yet
             }
         }
@@ -175,7 +188,7 @@ public:
         
     
 
-    void handleMove(Player& player1, Player& player2, std::vector<Player>& players, int num_players) 
+    void handleMove(Player& player1, Player& player2, std::vector<Player>& players, int num_players,char board[][SIZE]) 
     {
     	int currentPlayer = 1;
 
@@ -192,6 +205,7 @@ public:
 		if (len <= 0) 
 		{
 		    perror("Receive failed");
+		    printf("%d", new_socket);
 		    exit(EXIT_FAILURE);
 		}
 
@@ -208,66 +222,50 @@ public:
 		int col = message[2] - '0';
 
 		// Update the game board with the move
-		player1.board[row][col] = (currentPlayer == 1) ? 'X' : 'O';
+		board[row][col] = (currentPlayer == 1) ? 'X' : 'O';
 		
-		sprintf(message4, "%d,%d,%c", row, col, player1.board[row][col]);
+		sprintf(message4, "%d,%d,%c", row, col, board[row][col]);
 		printf ("Mess: %s\n", message4);
 
 		// Send the move to both players
-		for (int i = 0; i < num_players; i++) 
-		{
-		    if (&player1 == &players[i] || &player2 == &players[i]) 
-		    {
-		    	WebSocket::encodeAndSend(message4, strlen(message4), players[i].fd);
-		        
-		    }
-		}
+		WebSocket::encodeAndSend(message4, strlen(message4), player1.fd);
+		WebSocket::encodeAndSend(message4, strlen(message4), player2.fd);
 		
 		char message2[1096];
 
 		// Check for game-over conditions
-		int result = GameLogic::isGameOver(player1);
+		int result = GameLogic::isGameOver(player1, board);
 		if (result == 1) 
 		{
 		    // Player 1 wins
 		     printf("Player %d wins!\n", currentPlayer);
 	             sprintf(message2, "Player %d wins!", currentPlayer);
-		    char game_over_message[] = "Game Over";
-		    for (int i = 0; i < num_players; i++) {
-		        if (&player1 == &players[i] || &player2 == &players[i]) {
-		            WebSocket::encodeAndSend(message2, strlen(message2), players[i].fd);
-		            WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), players[i].fd);
-		        }
-		    }
-		    break;
+		     char game_over_message[] = "Game Over";
+		     WebSocket::encodeAndSend(message2, strlen(message2), player1.fd);
+		     WebSocket::encodeAndSend(message2, strlen(message2), player2.fd);
+		     WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), player1.fd);
+		     WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), player2.fd);
+		     //close(players[i].fd);
+		     break;
 		} 
 		else if (result == -1) 
 		{
 		    // It's a draw
 		    char draw_message[] = "It's a draw!";
 		    char game_over_message[] = "Game Over";
-		    for (int i = 0; i < num_players; i++) 
-		    {
-		        if (&player1 == &players[i] || &player2 == &players[i]) 
-		        {
-		            WebSocket::encodeAndSend(draw_message, strlen(draw_message), players[i].fd);
-		            WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), players[i].fd);
-		            
-		        }
-		    }
+		    WebSocket::encodeAndSend(draw_message, strlen(draw_message), player1.fd);
+		    WebSocket::encodeAndSend(draw_message, strlen(draw_message), player2.fd);
+		    WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), player1.fd);
+		    WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), player2.fd);
+		    //close(players[i].fd);
 		    break;
 		} 
 		else 
 		{
 		    // Continue the game
-		    char next_move_message[] = "Next move";
-		    for (int i = 0; i < num_players; i++) 
-		    {
-		        if (&player1 == &players[i] || &player2 == &players[i]) 
-		        {
-		            WebSocket::encodeAndSend(next_move_message, strlen(next_move_message), players[i].fd);
-		        }
-		    }
+		    char next_move_message[] = "Next move";		   
+		    WebSocket::encodeAndSend(next_move_message, strlen(next_move_message), player1.fd);
+		    WebSocket::encodeAndSend(next_move_message, strlen(next_move_message), player2.fd);
 		    currentPlayer = (currentPlayer == 1) ? 2 : 1; // Switch player
 		}
          }
@@ -296,8 +294,8 @@ public:
     void handle_playreq(Player& player) 
     {
            int flag = 0,i;
-           cout<<player.fd<<endl;
-           cout<<GameServer::players[1].fd<<endl;
+           //cout<<player.fd<<endl;
+           //cout<<GameServer::players[1].fd<<endl;
 
 	    if (!player.matched) 
 	    {
@@ -305,15 +303,34 @@ public:
 		{
 		    for ( i = 0; i < num_players; i++) 
 		    {
-		        if (!GameServer::players[i].matched && player.fd != GameServer::players[i].fd && player.req ==1 && GameServer::players[i].req == 1) 
+		        if (!GameServer::players[i].matched && player.fd != GameServer::players[i].fd && player.req ==1 && GameServer::players[i].req == 1 ) 
 		        {
 		            // Match found
 		            player.matched = 1;
 		            GameServer::players[i].matched = 1;
 		            flag = 1;
 		            
-		            GameLogic :: initializeBoard(player);
-		            GameLogic :: initializeBoard(GameServer::players[i]);
+		            //char board[SIZE][SIZE];
+		            //char(*result)[SIZE] = GameLogic::allocateboard(); 
+		            char (&board)[SIZE][SIZE] = GameLogic::allocateboard();
+			    /*for (int i = 0; i < SIZE; ++i) {
+			    	for (int j = 0; j < SIZE; ++j) {
+					board[i][j] = result[i][j];
+			    	}
+			    }*/
+		            GameLogic :: initializeBoard(board);
+		            //GameLogic :: initializeBoard(GameServer::players[i]);
+		            
+		            if (flag) 
+			    {
+				game.handleMove(player, players[i], players, num_players, board);
+				// Reset match status after the game
+				player.matched = 0;
+				GameServer::players[i].matched = 0;
+				player.req = 0;
+				GameServer::players[i].req = 0;
+				
+			    }
 		            
 		            break;
 		        }
@@ -321,15 +338,7 @@ public:
 		}
 	    }
 
-	    if (flag) 
-	    {
-		game.handleMove(player, players[i], players, num_players);
-		// Reset match status after the game
-		player.matched = 0;
-		GameServer::players[i].matched = 0;
-		player.req = 0;
-		GameServer::players[i].req = 0;
-	    }
+	   
     }
     
     /*static void* threadEntryPoint(void* arg) 
@@ -404,10 +413,10 @@ public:
 
     void handle_websocket(int new_socket) 
     {
-    	cout << "@@@" << num_players << endl;
+    	    //cout << "@@@" << num_players << endl;
 	    char buffer[BUFFER_SIZE];
 	    int id = num_players;
-	    cout<<GameServer::players.size()<<endl;
+	    //cout<<GameServer::players.size()<<endl;
 
 	    // Add the new player to the players vector
 	    Player new_player;
@@ -415,11 +424,11 @@ public:
 	    new_player.matched = 0;
 	    new_player.req = 0;
 	    GameServer::players.push_back(new_player);
-	    cout<<GameServer::players.size()<< " "<< &new_player<<endl;
+	    //cout<<GameServer::players.size()<< " "<< &new_player<<endl;
 	    
-	    cout<<"hello"<<new_player.fd<<endl;
+	    //cout<<"hello"<<new_player.fd<<endl;
 	    num_players++;
-		cout << "$$$" << num_players << endl;
+		//cout << "$$$" << num_players << endl;
 	    while (1) 
 	    {
 		char message[BUFFER_SIZE];
@@ -444,8 +453,10 @@ public:
 		        if (GameServer::players[id].matched != 0) {
 		            break;
 		        }
-		         GameServer::players[id].req = 1;
-		       
+		        GameServer::players[id].req = 1;
+		        //cout<<GameServer::players[0].fd<<endl;
+		        //cout<<GameServer::players[1].fd<<endl;
+		        //cout << "&&&" << id << endl;
 		        GameServer::handle_playreq(GameServer::players[id]);
 		    }
 		}
@@ -458,6 +469,7 @@ public:
            }
            close(GameServer::players[id].fd);
            pthread_exit(NULL);
+           
     }
 
     void startServer() 
@@ -531,7 +543,8 @@ public:
 };
 
 
-int main() {
+int main() 
+{
     GameServer server;
     //cout << server.getNum () << endl;
     server.startServer();

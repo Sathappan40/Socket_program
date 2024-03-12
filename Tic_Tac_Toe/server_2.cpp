@@ -237,6 +237,7 @@ public:
 		        if (&player1 == &players[i] || &player2 == &players[i]) {
 		            WebSocket::encodeAndSend(message2, strlen(message2), players[i].fd);
 		            WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), players[i].fd);
+		            //close(players[i].fd);
 		        }
 		    }
 		    break;
@@ -252,6 +253,7 @@ public:
 		        {
 		            WebSocket::encodeAndSend(draw_message, strlen(draw_message), players[i].fd);
 		            WebSocket::encodeAndSend(game_over_message, strlen(game_over_message), players[i].fd);
+		            //close(players[i].fd);
 		        }
 		    }
 		    break;
@@ -534,7 +536,8 @@ public:
 };
 
 
-int main() {
+int main() 
+{
     GameServer server;
     //cout << server.getNum () << endl;
     server.startServer();
