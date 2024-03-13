@@ -18,7 +18,7 @@
 #define MAX_CLIENTS 10
 
 using namespace std;
-int num_players = 0;
+//int num_players = 0;
 
 class Player {
 public:
@@ -276,7 +276,8 @@ public:
 class GameServer 
 {
 private:
-    //int num_players = 0;
+    int num_players = 0;
+    int req_no=0;
     int client_sockets[MAX_CLIENTS];
     int num_client = 0;
     pthread_mutex_t mutex;
@@ -419,7 +420,7 @@ public:
     	    //cout << "@@@" << num_players << endl;
 	    char buffer[BUFFER_SIZE];
 	    int id = num_players;
-	    printf("%d", num_players);
+	    printf("$ %d\n", num_players);
 	    //cout<<GameServer::players.size()<<endl;
 
 	    // Add the new player to the players vector
@@ -432,6 +433,7 @@ public:
 	    
 	    //cout<<"hello"<<new_player.fd<<endl;
 	    num_players++;
+	    printf("# %d\n", num_players);
 		//cout << "$$$" << num_players << endl;
 	    while (1) 
 	    {
@@ -452,16 +454,33 @@ public:
 		}
 
 		// Handle PlayRequest message
-		if (strcmp(message, "PlayRequest") == 0) {
-		    while (1) {
-		        if (GameServer::players[id].matched != 0) {
+		if (strcmp(message, "PlayRequest") == 0) 
+		{
+		    req_no++;
+		    printf("^ %d", req_no);
+		    while (1) 
+		    {
+		        if (GameServer::players[id].matched != 0) 
+		        {
 		            break;
 		        }
 		        GameServer::players[id].req = 1;
 		        //cout<<GameServer::players[0].fd<<endl;
 		        //cout<<GameServer::players[1].fd<<endl;
 		        //cout << "&&&" << id << endl;
-		        GameServer::handle_playreq(GameServer::players[id]);
+		        if(req_no % 2 == 0)
+		        {
+		        	//printf("@@");
+		        	GameServer::handle_playreq(GameServer::players[id]);
+		        }
+		        else
+		        {
+		        	break;
+		        }
+		    }
+		    while (GameServer::players[id].matched == 0)
+		    {
+		    	;
 		    }
 		}
 
