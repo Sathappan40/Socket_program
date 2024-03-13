@@ -18,6 +18,7 @@
 #define MAX_CLIENTS 10
 
 using namespace std;
+int num_players = 0;
 
 class Player {
 public:
@@ -128,7 +129,7 @@ class GameLogic
 {
 public:
 
-    static char (&allocateboard())[SIZE][SIZE] 
+    /*static char (&allocateboard())[SIZE][SIZE] 
     {
 	    static char board[SIZE][SIZE];
 	    for (int i = 0; i < SIZE; ++i) 
@@ -139,7 +140,7 @@ public:
 		}
 	    }
 	    return board;
-    }
+    }*/
     
     static void initializeBoard(char (*board)[SIZE]) 
     {
@@ -275,7 +276,7 @@ public:
 class GameServer 
 {
 private:
-    int num_players = 0;
+    //int num_players = 0;
     int client_sockets[MAX_CLIENTS];
     int num_client = 0;
     pthread_mutex_t mutex;
@@ -312,13 +313,15 @@ public:
 		            
 		            //char board[SIZE][SIZE];
 		            //char(*result)[SIZE] = GameLogic::allocateboard(); 
-		            char (&board)[SIZE][SIZE] = GameLogic::allocateboard();
-			    /*for (int i = 0; i < SIZE; ++i) {
+		            //char (&board)[SIZE][SIZE] = GameLogic::allocateboard();
+		            
+		            char board[SIZE][SIZE];
+			    for (int i = 0; i < SIZE; ++i) {
 			    	for (int j = 0; j < SIZE; ++j) {
-					board[i][j] = result[i][j];
+					board[i][j] = ' ';
 			    	}
-			    }*/
-		            GameLogic :: initializeBoard(board);
+			    }
+		            //GameLogic :: initializeBoard(board);
 		            //GameLogic :: initializeBoard(GameServer::players[i]);
 		            
 		            if (flag) 
@@ -416,6 +419,7 @@ public:
     	    //cout << "@@@" << num_players << endl;
 	    char buffer[BUFFER_SIZE];
 	    int id = num_players;
+	    printf("%d", num_players);
 	    //cout<<GameServer::players.size()<<endl;
 
 	    // Add the new player to the players vector
